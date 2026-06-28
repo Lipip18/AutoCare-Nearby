@@ -1,13 +1,12 @@
 import { BikeIcon, Car, Lock, Mail, MapPin, Plus, Trash2, User } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
+import { loginAPI, registerAPI } from '../api/authAPI';
 import { Footer } from '../components/Footer';
 import { Header } from '../components/Header';
 import { ScrollToTop } from '../components/ScrollToTop';
 import { Button } from '../components/ui/button';
-
-
-
+import { useAuth } from '../context/AuthContext';
 
 interface Vehicle {
   id: string;
@@ -66,47 +65,39 @@ export function Login() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const handleSubmit = async (e: React.FormEvent) => {
+    const { login } = useAuth();
+const navigate = useNavigate();
+  e.preventDefault();
+  setIsLoading(true);
+  setError('');
+
+  try {
     if (isLogin) {
-      // Login logic
-      const savedUser = localStorage.getItem('userProfile');
-      if (savedUser) {
-        const userData = JSON.parse(savedUser);
-        if (userData.email === formData.email) {
-          alert('Welcome back! Redirecting to home...');
-          navigate('/');
-        } else {
-          alert('Invalid credentials. Please sign up if you don\'t have an account.');
-        }
-      } else {
-        alert('No account found. Please sign up first.');
-      }
+      const res = await loginAPI({ email: formData.email, password: formData.password });
+      login(res.data.token, res.data.user);
+      navigate('/');
     } else {
-      // Register logic - validate that at least one vehicle is complete
-      const completeVehicles = vehicles.filter(v => 
+      const completeVehicles = vehicles.filter(v =>
         v.type && v.make && v.model && v.year && v.registrationNumber
       );
-
       if (completeVehicles.length === 0) {
-        alert('Please add at least one complete vehicle to your profile.');
+        setError('Please add at least one complete vehicle.');
         return;
       }
-
-      const userProfile = {
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        preferredLocation: formData.preferredLocation,
+      const res = await registerAPI({
+        ...formData,
         vehicles: completeVehicles
-      };
-      
-      localStorage.setItem('userProfile', JSON.stringify(userProfile));
-      alert(`Account created successfully! ${completeVehicles.length} vehicle(s) saved for quick bookings.`);
+      });
+      login(res.data.token, res.data.user);
       navigate('/');
     }
-  };
+  } catch (err: any) {
+    setError(err.response?.data?.message || 'Something went wrong');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const locations = [
     'Mumbai - Andheri West',
