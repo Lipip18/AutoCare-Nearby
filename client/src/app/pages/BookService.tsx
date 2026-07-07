@@ -1,10 +1,10 @@
-import { Header } from '../components/Header';
-import { Footer } from '../components/Footer';
-import { ScrollToTop } from '../components/ScrollToTop';
-import { Calendar, Clock, MapPin, Car, User, Phone, Mail, ChevronRight, Check, BikeIcon, Plus, Truck } from 'lucide-react';
-import { Button } from '../components/ui/button';
-import { useState, useEffect } from 'react';
+import { BikeIcon, Calendar, Check, Clock, Mail, MapPin, Phone, Plus, Truck, User } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
+import { Footer } from '../components/Footer';
+import { Header } from '../components/Header';
+import { ScrollToTop } from '../components/ScrollToTop';
+import { Button } from '../components/ui/button';
 
 interface SavedVehicle {
   id: string;
@@ -14,7 +14,7 @@ interface SavedVehicle {
   year: string;
   registrationNumber: string;
 }
-
+// bookingService file
 export function BookService() {
   const [step, setStep] = useState(1);
   const [savedVehicles, setSavedVehicles] = useState<SavedVehicle[]>([]);
