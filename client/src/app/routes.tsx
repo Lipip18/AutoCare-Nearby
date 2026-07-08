@@ -1,7 +1,9 @@
 import { createBrowserRouter } from "react-router";
-import { Home } from "./pages/Home";
+import { AdminDashboard } from './pages/AdminDashboard';
 import { BookService } from "./pages/BookService";
+import { Home } from "./pages/Home";
 import { Login } from "./pages/Login";
+import { MyBookings } from './pages/MyBookings';
 
 export const router = createBrowserRouter([
   {
@@ -16,4 +18,6 @@ export const router = createBrowserRouter([
     path: "/login",
     Component: Login,
   },
+  { path: '/my-bookings', Component: MyBookings },
+  { path: '/admin', Component: AdminDashboard },
 ]);

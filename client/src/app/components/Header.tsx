@@ -1,16 +1,17 @@
 import {
-  Menu,
-  X,
+  BikeIcon,
+  ChevronDown,
+  LogOut,
   MapPin,
+  Menu,
   Phone,
   User,
-  ChevronDown,
-  BikeIcon,
-  LogOut,
+  X,
 } from "lucide-react";
-import { Button } from "./ui/button";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
+import { useAuth } from "../context/AuthContext";
+import { Button } from "./ui/button";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -18,18 +19,10 @@ export function Header() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const location = useLocation();
   const isHome = location.pathname === "/";
-  const [userName, setUserName] = useState<string | null>(null);
-  const [userVehicles, setUserVehicles] = useState<number>(0);
 
-  useEffect(() => {
-    // Check if user is logged in
-    const userProfile = localStorage.getItem("userProfile");
-    if (userProfile) {
-      const user = JSON.parse(userProfile);
-      setUserName(user.name);
-      setUserVehicles(user.vehicles?.length || 0);
-    }
-  }, [location]);
+  const { user, logout } = useAuth();
+  const userName = user?.name || null;
+  const userVehicles = user?.vehicles?.length || 0;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -41,9 +34,7 @@ export function Header() {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem("userProfile");
-    setUserName(null);
-    setUserVehicles(0);
+    logout();
     setMobileMenuOpen(false);
     setUserMenuOpen(false);
   };

@@ -1,10 +1,13 @@
 import { BikeIcon, Calendar, Check, Clock, Mail, MapPin, Phone, Plus, Truck, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
+import { createBookingAPI } from '../api/bookingAPI';
+import { getServicesAPI } from '../api/serviceAPI';
 import { Footer } from '../components/Footer';
 import { Header } from '../components/Header';
 import { ScrollToTop } from '../components/ScrollToTop';
 import { Button } from '../components/ui/button';
+import { useAuth } from '../context/AuthContext';
 
 interface SavedVehicle {
   id: string;
@@ -14,15 +17,29 @@ interface SavedVehicle {
   year: string;
   registrationNumber: string;
 }
+
+interface ServiceOption {
+  _id: string;
+  name: string;
+  price: string | number;
+  icon?: string;
+  type?: string;
+}
+
 // bookingService file
 export function BookService() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
   const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [services, setServices] = useState<ServiceOption[]>([]);
   const [savedVehicles, setSavedVehicles] = useState<SavedVehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const [useNewVehicle, setUseNewVehicle] = useState(false);
   const [isMember, setIsMember] = useState(false);
   const [membershipType, setMembershipType] = useState<string>('');
-  
+
   const [formData, setFormData] = useState({
     service: '',
     location: '',
@@ -41,55 +58,50 @@ export function BookService() {
     pickupAddress: ''
   });
 
-  // Load user profile data on component mount
+  // Fetch services from the API
   useEffect(() => {
-    const userProfile = localStorage.getItem('userProfile');
-    if (userProfile) {
-      const user = JSON.parse(userProfile);
-      
-      // Load user contact info
-      setFormData(prev => ({
-        ...prev,
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.phone || '',
-        location: user.preferredLocation || ''
-      }));
-
-      // Load saved vehicles
-      if (user.vehicles && user.vehicles.length > 0) {
-        setSavedVehicles(user.vehicles);
-        // Auto-select first vehicle
-        setSelectedVehicleId(user.vehicles[0].id);
-        const firstVehicle = user.vehicles[0];
-        setFormData(prev => ({
-          ...prev,
-          vehicleType: firstVehicle.type,
-          vehicleMake: firstVehicle.make,
-          vehicleModel: firstVehicle.model,
-          vehicleYear: firstVehicle.year,
-          vehicleRegistration: firstVehicle.registrationNumber
-        }));
-      }
-
-      // Load membership status
-      if (user.membership) {
-        setIsMember(true);
-        setMembershipType(user.membership.type);
-      }
-    }
+    getServicesAPI()
+      .then(res => setServices(res.data))
+      .catch(console.error);
   }, []);
 
-  const isUserLoggedIn = localStorage.getItem('userProfile') !== null;
+  // Load user profile data from AuthContext
+  useEffect(() => {
+    if (!user) return;
 
-  const services = [
-    { id: 'oil-change', name: 'Oil Change', price: '₹399', icon: '🛢️', type: '2-wheeler' },
-    { id: 'general-service', name: 'General Service', price: '₹699', icon: '🔧', type: '2-wheeler' },
-    { id: 'brake-service', name: 'Brake Service', price: '₹899', icon: '🛑', type: 'both' },
-    { id: 'tire-service', name: 'Tire/Tyre Service', price: '₹599', icon: '🛞', type: 'both' },
-    { id: 'battery-service', name: 'Battery Service', price: '₹799', icon: '🔋', type: 'both' },
-    { id: 'diagnostics', name: 'Diagnostics', price: '₹499', icon: '🔍', type: 'both' }
-  ];
+    // Load user contact info
+    setFormData(prev => ({
+      ...prev,
+      name: user.name || '',
+      email: user.email || '',
+      phone: user.phone || '',
+      location: user.preferredLocation || ''
+    }));
+
+    // Load saved vehicles
+    if (user.vehicles && user.vehicles.length > 0) {
+      setSavedVehicles(user.vehicles);
+      // Auto-select first vehicle
+      setSelectedVehicleId(user.vehicles[0].id);
+      const firstVehicle = user.vehicles[0];
+      setFormData(prev => ({
+        ...prev,
+        vehicleType: firstVehicle.type,
+        vehicleMake: firstVehicle.make,
+        vehicleModel: firstVehicle.model,
+        vehicleYear: firstVehicle.year,
+        vehicleRegistration: firstVehicle.registrationNumber
+      }));
+    }
+
+    // Load membership status
+    if (user.membership) {
+      setIsMember(true);
+      setMembershipType(user.membership.type);
+    }
+  }, [user]);
+
+  const isUserLoggedIn = !!user;
 
   const locations = [
     'Mumbai - Andheri West',
@@ -119,7 +131,7 @@ export function BookService() {
   const handleVehicleSelection = (vehicleId: string) => {
     setSelectedVehicleId(vehicleId);
     setUseNewVehicle(false);
-    
+
     const selectedVehicle = savedVehicles.find(v => v.id === vehicleId);
     if (selectedVehicle) {
       setFormData(prev => ({
@@ -146,10 +158,39 @@ export function BookService() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Form submitted:', formData);
-    alert('Booking request submitted successfully! We will contact you shortly.');
+
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const selectedService = services.find((s: any) => s.name === formData.service);
+      await createBookingAPI({
+        serviceId: selectedService?._id,
+        location: formData.location,
+        date: formData.date,
+        time: formData.time,
+        vehicle: {
+          type: formData.vehicleType,
+          make: formData.vehicleMake,
+          model: formData.vehicleModel,
+          year: formData.vehicleYear,
+          registrationNumber: formData.vehicleRegistration
+        },
+        additionalNotes: formData.additionalNotes,
+        pickupDrop: formData.pickupDrop,
+        pickupAddress: formData.pickupAddress
+      });
+      setStep(5); // success step
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Booking failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const nextStep = () => {
@@ -174,7 +215,7 @@ export function BookService() {
       <ScrollToTop />
       <div className="min-h-screen bg-gray-50">
         <Header />
-        
+
         <main className="pt-20">
           {/* Hero Section */}
           <section className="bg-purple-600 py-16 lg:py-24">
@@ -198,54 +239,82 @@ export function BookService() {
             </div>
           </section>
 
-          {/* Progress Steps - Gestalt: Continuity */}
-          <section className="py-8 bg-white border-b border-gray-200">
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex items-center justify-between">
-                {[
-                  { num: 1, label: 'Service & Location', color: 'teal' },
-                  { num: 2, label: 'Vehicle Details', color: 'orange' },
-                  { num: 3, label: 'Contact Info', color: 'purple' }
-                ].map((item, index) => {
-                  const colorClass = item.color === 'teal' ? 'teal' : item.color === 'orange' ? 'orange' : 'purple';
-                  const bgColor = step >= item.num 
-                    ? (colorClass === 'teal' ? 'bg-teal-600' : colorClass === 'orange' ? 'bg-orange-600' : 'bg-purple-600')
-                    : 'bg-white';
-                  const borderColor = step >= item.num 
-                    ? (colorClass === 'teal' ? 'border-teal-600' : colorClass === 'orange' ? 'border-orange-600' : 'border-purple-600')
-                    : 'border-gray-300';
-                  const textColor = step >= item.num 
-                    ? (colorClass === 'teal' ? 'text-teal-600' : colorClass === 'orange' ? 'text-orange-600' : 'text-purple-600')
-                    : 'text-gray-400';
-                  const lineColor = step > item.num 
-                    ? (colorClass === 'teal' ? 'bg-teal-600' : colorClass === 'orange' ? 'bg-orange-600' : 'bg-purple-600')
-                    : 'bg-gray-300';
-                  
-                  return (
-                    <div key={item.num} className="flex items-center flex-1">
-                      <div className="flex flex-col items-center flex-1">
-                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center border-2 transition-all ${bgColor} ${borderColor} ${step >= item.num ? 'text-white' : 'text-gray-400'}`}>
-                          {step > item.num ? <Check className="w-5 h-5 sm:w-6 sm:h-6" /> : item.num}
+          {step !== 5 && (
+            /* Progress Steps - Gestalt: Continuity */
+            <section className="py-8 bg-white border-b border-gray-200">
+              <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex items-center justify-between">
+                  {[
+                    { num: 1, label: 'Service & Location', color: 'teal' },
+                    { num: 2, label: 'Vehicle Details', color: 'orange' },
+                    { num: 3, label: 'Contact Info', color: 'purple' }
+                  ].map((item, index) => {
+                    const colorClass = item.color === 'teal' ? 'teal' : item.color === 'orange' ? 'orange' : 'purple';
+                    const bgColor = step >= item.num
+                      ? (colorClass === 'teal' ? 'bg-teal-600' : colorClass === 'orange' ? 'bg-orange-600' : 'bg-purple-600')
+                      : 'bg-white';
+                    const borderColor = step >= item.num
+                      ? (colorClass === 'teal' ? 'border-teal-600' : colorClass === 'orange' ? 'border-orange-600' : 'border-purple-600')
+                      : 'border-gray-300';
+                    const textColor = step >= item.num
+                      ? (colorClass === 'teal' ? 'text-teal-600' : colorClass === 'orange' ? 'text-orange-600' : 'text-purple-600')
+                      : 'text-gray-400';
+                    const lineColor = step > item.num
+                      ? (colorClass === 'teal' ? 'bg-teal-600' : colorClass === 'orange' ? 'bg-orange-600' : 'bg-purple-600')
+                      : 'bg-gray-300';
+
+                    return (
+                      <div key={item.num} className="flex items-center flex-1">
+                        <div className="flex flex-col items-center flex-1">
+                          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center border-2 transition-all ${bgColor} ${borderColor} ${step >= item.num ? 'text-white' : 'text-gray-400'}`}>
+                            {step > item.num ? <Check className="w-5 h-5 sm:w-6 sm:h-6" /> : item.num}
+                          </div>
+                          <span className={`mt-2 text-xs sm:text-sm text-center hidden sm:block font-medium ${textColor}`}>
+                            {item.label}
+                          </span>
                         </div>
-                        <span className={`mt-2 text-xs sm:text-sm text-center hidden sm:block font-medium ${textColor}`}>
-                          {item.label}
-                        </span>
+                        {index < 2 && (
+                          <div className={`flex-1 h-0.5 mx-2 ${lineColor}`}></div>
+                        )}
                       </div>
-                      {index < 2 && (
-                        <div className={`flex-1 h-0.5 mx-2 ${lineColor}`}></div>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+          )}
 
           {/* Form Section */}
           <section className="py-12 lg:py-20">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+
+              {step === 5 ? (
+                /* Success Step */
+                <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 lg:p-12 text-center">
+                  <div className="w-20 h-20 bg-teal-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Check className="w-10 h-10 text-teal-600" />
+                  </div>
+                  <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 mb-3">Booking Confirmed!</h2>
+                  <p className="text-gray-600 max-w-md mx-auto mb-8">
+                    Thanks, {formData.name || 'there'}! Your service request has been submitted. We'll contact you shortly to confirm the details.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <Link to="/">
+                      <Button variant="outline" className="rounded-2xl border-2 border-purple-600 text-purple-600 hover:bg-purple-50 font-semibold">
+                        Back to Home
+                      </Button>
+                    </Link>
+                    <Button
+                      onClick={() => setStep(1)}
+                      className="bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-semibold"
+                    >
+                      Book Another Service
+                    </Button>
+                  </div>
+                </div>
+              ) : (
               <form onSubmit={handleSubmit} className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 lg:p-12">
-                
+
                 {/* Step 1: Service & Location - Gestalt: Common Region */}
                 {step === 1 && (
                   <div className="space-y-8">
@@ -256,27 +325,29 @@ export function BookService() {
                         </div>
                         <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900">Select Service & Location</h2>
                       </div>
-                      
+
                       {/* Service Selection - Gestalt: Similarity */}
                       <div className="mb-8">
                         <label className="block text-lg font-medium text-gray-700 mb-4">Choose Service *</label>
                         <div className="grid sm:grid-cols-2 gap-4">
                           {services.map(service => (
                             <div
-                              key={service.id}
-                              onClick={() => handleInputChange('service', service.id)}
+                              key={service._id}
+                              onClick={() => handleInputChange('service', service.name)}
                               className={`p-5 rounded-2xl border-2 cursor-pointer transition-all hover:shadow-md ${
-                                formData.service === service.id
+                                formData.service === service.name
                                   ? 'border-teal-600 bg-teal-50 shadow-md'
                                   : 'border-gray-200 hover:border-teal-300'
                               }`}
                             >
                               <div className="flex justify-between items-start">
                                 <div className="flex items-center gap-3">
-                                  <span className="text-3xl">{service.icon}</span>
+                                  <span className="text-3xl">{service.icon || '🛠️'}</span>
                                   <div>
                                     <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1">{service.name}</h3>
-                                    <p className="text-sm font-semibold text-teal-600">{service.price}</p>
+                                    <p className="text-sm font-semibold text-teal-600">
+                                      {typeof service.price === 'number' ? `₹${service.price}` : service.price}
+                                    </p>
                                     {service.type === '2-wheeler' && (
                                       <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full mt-1 inline-block">
                                         2-Wheeler Special
@@ -284,7 +355,7 @@ export function BookService() {
                                     )}
                                   </div>
                                 </div>
-                                {formData.service === service.id && (
+                                {formData.service === service.name && (
                                   <div className="w-6 h-6 bg-teal-600 rounded-full flex items-center justify-center">
                                     <Check className="w-4 h-4 text-white" />
                                   </div>
@@ -354,8 +425,8 @@ export function BookService() {
 
                       {/* Pickup & Drop Service - Gestalt: Common Region */}
                       <div className={`rounded-2xl p-6 border-2 transition-all ${
-                        formData.pickupDrop 
-                          ? 'bg-teal-50 border-teal-300' 
+                        formData.pickupDrop
+                          ? 'bg-teal-50 border-teal-300'
                           : 'bg-gray-50 border-gray-200'
                       }`}>
                         <div className="flex items-start gap-4 mb-4">
@@ -372,8 +443,8 @@ export function BookService() {
                               <div>
                                 <h3 className="text-lg font-semibold text-gray-900">Free Pickup & Drop Service</h3>
                                 <p className="text-sm text-gray-600 mt-1">
-                                  {isMember 
-                                    ? '✓ Included free with your membership' 
+                                  {isMember
+                                    ? '✓ Included free with your membership'
                                     : 'Add ₹200 for convenient pickup and drop service'}
                                 </p>
                               </div>
@@ -580,7 +651,7 @@ export function BookService() {
                         </div>
                         <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900">Contact Information</h2>
                       </div>
-                      
+
                       <div className="space-y-6 bg-purple-50 rounded-2xl p-6 border-2 border-purple-200">
                         <div>
                           <label className="block text-base font-medium text-gray-700 mb-3">
@@ -650,11 +721,16 @@ export function BookService() {
                         </h3>
                         <div className="space-y-3 text-base text-gray-700">
                           <div className="flex items-start gap-3 pb-3 border-b border-gray-200">
-                            <span className="text-2xl">{services.find(s => s.id === formData.service)?.icon || '🛠️'}</span>
+                            <span className="text-2xl">{services.find(s => s.name === formData.service)?.icon || '🛠️'}</span>
                             <div>
                               <div className="font-medium text-gray-900">Service</div>
-                              <div>{services.find(s => s.id === formData.service)?.name || 'Not selected'}</div>
-                              <div className="text-teal-600 font-semibold">{services.find(s => s.id === formData.service)?.price || ''}</div>
+                              <div>{services.find(s => s.name === formData.service)?.name || 'Not selected'}</div>
+                              <div className="text-teal-600 font-semibold">
+                                {(() => {
+                                  const price = services.find(s => s.name === formData.service)?.price;
+                                  return price ? (typeof price === 'number' ? `₹${price}` : price) : '';
+                                })()}
+                              </div>
                             </div>
                           </div>
                           <div className="flex items-start gap-3 pb-3 border-b border-gray-200">
@@ -676,8 +752,8 @@ export function BookService() {
                             <div>
                               <div className="font-medium text-gray-900">Vehicle</div>
                               <div>
-                                {formData.vehicleYear && formData.vehicleMake && formData.vehicleModel 
-                                  ? `${formData.vehicleYear} ${formData.vehicleMake} ${formData.vehicleModel}` 
+                                {formData.vehicleYear && formData.vehicleMake && formData.vehicleModel
+                                  ? `${formData.vehicleYear} ${formData.vehicleMake} ${formData.vehicleModel}`
                                   : 'Not provided'}
                               </div>
                               {formData.vehicleRegistration && (
@@ -704,7 +780,7 @@ export function BookService() {
                       ← Previous Step
                     </Button>
                   )}
-                  
+
                   {step < 3 ? (
                     <Button
                       type="button"
@@ -722,17 +798,19 @@ export function BookService() {
                     <Button
                       type="submit"
                       size="lg"
-                      className="bg-teal-600 hover:bg-teal-700 text-white rounded-2xl ml-auto order-1 sm:order-2 font-semibold shadow-lg hover:shadow-xl transition-all"
+                      disabled={isSubmitting}
+                      className="bg-teal-600 hover:bg-teal-700 text-white rounded-2xl ml-auto order-1 sm:order-2 font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       <Check className="w-5 h-5 mr-2" />
-                      Confirm Booking
+                      {isSubmitting ? 'Submitting...' : 'Confirm Booking'}
                     </Button>
                   )}
                 </div>
               </form>
+              )}
 
               {/* Not Logged In CTA - Gestalt: Figure/Ground */}
-              {!isUserLoggedIn && (
+              {!isUserLoggedIn && step !== 5 && (
                 <div className="mt-8 bg-teal-50 border-2 border-teal-200 rounded-2xl p-6 text-center">
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Want to save time on future bookings?</h3>
                   <p className="text-gray-600 mb-4">Create an account to save your vehicle details and book services faster!</p>

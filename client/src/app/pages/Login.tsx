@@ -19,7 +19,12 @@ interface Vehicle {
 
 export function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
+
   const [isLogin, setIsLogin] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -42,7 +47,7 @@ export function Login() {
   };
 
   const handleVehicleChange = (id: string, field: string, value: string) => {
-    setVehicles(prev => prev.map(vehicle => 
+    setVehicles(prev => prev.map(vehicle =>
       vehicle.id === id ? { ...vehicle, [field]: value } : vehicle
     ));
   };
@@ -66,38 +71,37 @@ export function Login() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    const { login } = useAuth();
-const navigate = useNavigate();
-  e.preventDefault();
-  setIsLoading(true);
-  setError('');
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
 
-  try {
-    if (isLogin) {
-      const res = await loginAPI({ email: formData.email, password: formData.password });
-      login(res.data.token, res.data.user);
-      navigate('/');
-    } else {
-      const completeVehicles = vehicles.filter(v =>
-        v.type && v.make && v.model && v.year && v.registrationNumber
-      );
-      if (completeVehicles.length === 0) {
-        setError('Please add at least one complete vehicle.');
-        return;
+    try {
+      if (isLogin) {
+        const res = await loginAPI({ email: formData.email, password: formData.password });
+        login(res.data.token, res.data.user);
+        navigate('/');
+      } else {
+        const completeVehicles = vehicles.filter(v =>
+          v.type && v.make && v.model && v.year && v.registrationNumber
+        );
+        if (completeVehicles.length === 0) {
+          setError('Please add at least one complete vehicle.');
+          setIsLoading(false);
+          return;
+        }
+        const res = await registerAPI({
+          ...formData,
+          vehicles: completeVehicles
+        });
+        login(res.data.token, res.data.user);
+        navigate('/');
       }
-      const res = await registerAPI({
-        ...formData,
-        vehicles: completeVehicles
-      });
-      login(res.data.token, res.data.user);
-      navigate('/');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Something went wrong');
+    } finally {
+      setIsLoading(false);
     }
-  } catch (err: any) {
-    setError(err.response?.data?.message || 'Something went wrong');
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   const locations = [
     'Mumbai - Andheri West',
@@ -128,7 +132,7 @@ const navigate = useNavigate();
       <ScrollToTop />
       <div className="min-h-screen bg-gray-50">
         <Header />
-        
+
         <main className="pt-20 pb-12">
           {/* Hero Section */}
           <section className="bg-purple-600 py-12 lg:py-16">
@@ -142,7 +146,7 @@ const navigate = useNavigate();
                   {isLogin ? 'Welcome Back!' : 'Create Your Account'}
                 </h1>
                 <p className="text-lg sm:text-xl text-purple-100 max-w-2xl mx-auto">
-                  {isLogin 
+                  {isLogin
                     ? 'Sign in to access your saved vehicle information and book services faster.'
                     : 'Save all your vehicles once and enjoy quick, hassle-free bookings every time.'
                   }
@@ -159,10 +163,10 @@ const navigate = useNavigate();
                 <div className="flex gap-2 mb-8 p-1.5 bg-gray-100 rounded-2xl">
                   <button
                     type="button"
-                    onClick={() => setIsLogin(true)}
+                    onClick={() => { setIsLogin(true); setError(''); }}
                     className={`flex-1 py-3.5 px-6 rounded-xl transition-all font-medium ${
-                      isLogin 
-                        ? 'bg-white text-purple-600 shadow-md' 
+                      isLogin
+                        ? 'bg-white text-purple-600 shadow-md'
                         : 'text-gray-600 hover:text-purple-600'
                     }`}
                   >
@@ -170,16 +174,23 @@ const navigate = useNavigate();
                   </button>
                   <button
                     type="button"
-                    onClick={() => setIsLogin(false)}
+                    onClick={() => { setIsLogin(false); setError(''); }}
                     className={`flex-1 py-3.5 px-6 rounded-xl transition-all font-medium ${
-                      !isLogin 
-                        ? 'bg-white text-purple-600 shadow-md' 
+                      !isLogin
+                        ? 'bg-white text-purple-600 shadow-md'
                         : 'text-gray-600 hover:text-purple-600'
                     }`}
                   >
                     Sign Up
                   </button>
                 </div>
+
+                {/* Error message */}
+                {error && (
+                  <div className="mb-6 p-4 rounded-xl bg-red-50 border-2 border-red-200 text-red-700 text-sm">
+                    {error}
+                  </div>
+                )}
 
                 <form onSubmit={handleSubmit} className="space-y-8">
                   {/* Login Form */}
@@ -238,7 +249,7 @@ const navigate = useNavigate();
                           </div>
                           <h3 className="text-xl font-semibold text-gray-900">Personal Information</h3>
                         </div>
-                        
+
                         <div className="space-y-5">
                           <div>
                             <label className="block text-base font-medium text-gray-700 mb-3">
@@ -310,7 +321,7 @@ const navigate = useNavigate();
                           </div>
                           <h3 className="text-xl font-semibold text-gray-900">Preferred Service Location</h3>
                         </div>
-                        
+
                         <select
                           value={formData.preferredLocation}
                           onChange={(e) => handleInputChange('preferredLocation', e.target.value)}
@@ -340,8 +351,8 @@ const navigate = useNavigate();
 
                         <div className="space-y-6">
                           {vehicles.map((vehicle, index) => (
-                            <div 
-                              key={vehicle.id} 
+                            <div
+                              key={vehicle.id}
                               className="bg-white rounded-2xl p-6 border-2 border-teal-100 shadow-sm hover:shadow-md transition-all"
                             >
                               {/* Vehicle Header - Gestalt: Figure/Ground */}
@@ -472,9 +483,14 @@ const navigate = useNavigate();
                   <Button
                     type="submit"
                     size="lg"
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-2xl text-lg py-6 font-semibold shadow-lg hover:shadow-xl transition-all"
+                    disabled={isLoading}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-2xl text-lg py-6 font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isLogin ? 'Sign In to Your Account' : 'Create Account & Save Vehicles'}
+                    {isLoading
+                      ? 'Please wait...'
+                      : isLogin
+                        ? 'Sign In to Your Account'
+                        : 'Create Account & Save Vehicles'}
                   </Button>
 
                   {/* Additional Info */}
