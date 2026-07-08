@@ -1,5 +1,6 @@
 import {
   BikeIcon,
+  Calendar,
   ChevronDown,
   LogOut,
   MapPin,
@@ -193,6 +194,14 @@ export function Header() {
                       </div>
                     </div>
                     <Link
+                      to="/my-bookings"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <Calendar className="w-4 h-4" />
+                      <span>My Bookings</span>
+                    </Link>
+                    <Link
                       to="/login"
                       onClick={() => setUserMenuOpen(false)}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
@@ -345,6 +354,16 @@ export function Header() {
                         </div>
                       </div>
                     </div>
+                    <Link
+                      to="/my-bookings"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+                    >
+                      <Calendar className="w-5 h-5" />
+                      <span className="font-medium">
+                        My Bookings
+                      </span>
+                    </Link>
                     <Link
                       to="/login"
                       onClick={() => setMobileMenuOpen(false)}
